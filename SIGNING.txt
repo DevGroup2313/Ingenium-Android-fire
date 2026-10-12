@@ -1,0 +1,27 @@
+INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+NO LICENCE IS GRANTED. See LICENCE.txt.
+
+About ingenium-release.keystore
+===============================
+
+Android installs an update over an existing app only when both are signed
+with the same key. This file is that key for the Android and Fire app, so
+every build from this repository installs over the previous one and keeps
+your models and your work. Without a fixed key, each cloud build would be
+signed differently, and you would have to uninstall (losing your models)
+before every update.
+
+Keep this repository private. Anyone holding this file and its password
+(ingenium-local-signing) could sign an app that installs over your Ingenium
+on a device they can reach.
+
+If you would rather keep the key out of the repository: in GitHub, open
+Settings, Secrets and variables, Actions, and add a secret named
+INGENIUM_KEYSTORE_PASSWORD with a new password, re-create the keystore with
+that password (keytool -genkeypair -keystore ingenium-release.keystore
+-storetype PKCS12 -alias ingenium -keyalg RSA -keysize 3072 -validity 10000),
+and pass the secret to the build step as an environment variable. Note that a
+new key means one last uninstall and reinstall.
+
+The iPhone and iPad app is not signed here: Apple requires you to sign it
+with your own Apple ID when you install it (see INSTALL_MOBILE.md).
