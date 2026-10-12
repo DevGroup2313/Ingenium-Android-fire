@@ -1,0 +1,7 @@
+{
+  "_about": "Who this app is. Every build step reads this file: the Android and Fire build, the iPhone and iPad build, and the release they publish. Ingenium's own builder writes a new one for each new app it packages.",
+  "name": "Ingenium",
+  "app_id": "com.yannieforest.ingenium",
+  "file_name": "Ingenium",
+  "test": "model"
+}
