@@ -1,0 +1,149 @@
+# INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+# NO LICENCE IS GRANTED. See LICENCE.txt.
+#
+# Builds the Android and Fire tablet app in the cloud, tests it on an Android
+# emulator, and puts Ingenium-Android-Fire.apk (and a copy without the
+# built-in model) on this repository's Releases page. Nothing is needed on
+# your own computer.
+name: Build Ingenium for Fire and Android
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - 'ingenium_ios_project/**'
+      - '.github/workflows/build-ios.yml'
+      - '**/*.md'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLAMA_TAG: b11321
+
+jobs:
+  android:
+    name: Build, test on an emulator, publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Get the project
+        uses: actions/checkout@v4
+
+      - name: Read who the app is (app.json)
+        run: |
+          python3 - >> "$GITHUB_ENV" <<'EOF'
+          import json, re
+          a = json.load(open("app.json"))
+          assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", a["file_name"]), "app.json: file_name may hold only letters, digits, dots, dashes and underscores"
+          print("APP_NAME=" + a["name"])
+          print("APP_FILE=" + a["file_name"])
+          print("APP_ID=" + a["app_id"])
+          EOF
+          # the build number: the version, the day and this repository's run number
+          echo "INGENIUM_BUILD=3.3.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "INGENIUM_PLATFORM=Fire and Android" >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
+      - name: Make room (the app carries two models, about 1.5 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules /usr/share/swift \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/powershell /usr/local/share/chromium /opt/microsoft /opt/az || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Get llama.cpp ${{ env.LLAMA_TAG }}
+        run: git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
+
+      - name: Keep the downloaded models between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ingenium-models
+          key: models-android-${{ hashFiles('mobile_models.json') }}
+
+      - name: Put the built-in models and the current page into the app
+        run: |
+          # the built-in models must be the ones the page's lineup names (R70)
+          python3 tools/check_lineup.py
+          python3 tools/prepare_builtin_model.py android ingenium_android_project/app/src/main/assets/models
+          python3 tools/app_page.py ingenium.html ingenium_android_project/app/src/main/assets/ingenium.html --build "$INGENIUM_BUILD"
+          cp THIRD_PARTY_NOTICES.txt ingenium_android_project/app/src/main/assets/THIRD_PARTY_NOTICES.txt
+
+      - name: Android SDK parts
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724" "cmake;3.31.6" > /dev/null
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the app
+        working-directory: ingenium_android_project
+        # chmod: a file uploaded through GitHub's website is not marked runnable
+        run: |
+          chmod +x gradlew
+          ./gradlew ingeniumApk --no-daemon --stacktrace
+
+      - name: Check the engine's processor parts are in the app
+        # 64-bit ARM carries one processor part per chip generation; the
+        # engine picks the best at start, so a missing one is a broken app
+        run: |
+          APK=ingenium_android_project/app/build/outputs/apk/release/ingenium.apk
+          unzip -l "$APK" | grep -E "lib/.*\.so$" | awk '{print $1, $4}'
+          for f in lib/arm64-v8a/libggml-cpu-android_armv8.0_1.so lib/arm64-v8a/libggml-cpu-android_armv8.2_1.so \
+                   lib/arm64-v8a/libggml-cpu-android_armv8.6_1.so lib/arm64-v8a/libingenium.so lib/arm64-v8a/libllama.so \
+                   lib/arm64-v8a/libc++_shared.so lib/x86_64/libggml-cpu.so lib/x86_64/libingenium.so lib/armeabi-v7a/libingenium.so; do
+            unzip -l "$APK" | grep -q " $f\$" || { echo "::error::the app is missing $f"; exit 1; }
+          done
+
+      - name: Clear the build's leftovers (the test device needs the room)
+        # the finished APKs stay; the compiler's working files and the copies
+        # of the models made along the way go, as does the engine's source
+        run: |
+          df -h /
+          ls -la ingenium_android_project/app/build/outputs/apk/release/
+          rm -rf ingenium_android_project/app/build/intermediates ingenium_android_project/app/build/tmp \
+            ingenium_android_project/app/.cxx ingenium_android_project/app/build/generated third_party/llama.cpp
+          df -h /
+
+      - name: Let the emulator use hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install on an Android emulator and ask the built-in model a question
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash ingenium_android_project/emulator_selftest.sh ingenium_android_project/app/build/outputs/apk/release/ingenium.apk ingenium_android_project/app/build/outputs/apk/release/ingenium-no-model.apk
+
+      - name: Publish to the Releases page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OUT=ingenium_android_project/app/build/outputs/apk/release
+          set -- "$OUT/ingenium.apk" "${APP_FILE}-Android-Fire.apk"
+          # the copy without the built-in model only matters when the app has one
+          if unzip -l "$OUT/ingenium.apk" | grep -q "assets/models/builtin.json"; then
+            set -- "$@" "$OUT/ingenium-no-model.apk" "${APP_FILE}-Android-Fire-no-model.apk"
+          fi
+          bash tools/publish_release.sh "$@"

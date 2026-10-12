@@ -1,0 +1,149 @@
+# INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+# NO LICENCE IS GRANTED. See LICENCE.txt.
+#
+# Builds the iPhone and iPad app on a Mac in the cloud, tests it in the iPhone
+# simulator, and puts Ingenium-iPhone-iPad-unsigned.ipa (and a copy without
+# the built-in model) on this repository's Releases page. Apple requires every app to be signed before it installs;
+# you sign this one yourself with your Apple ID (see INSTALL_MOBILE.md).
+#
+# Mac build time costs ten times as much of a private repository's free
+# monthly minutes as Linux time, so this runs only when the iPhone app, the
+# engine, the page or the models change (or when started by hand).
+name: Build Ingenium for iPhone and iPad
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'ingenium_ios_project/**'
+      - 'native/**'
+      - 'ingenium.html'
+      - 'mobile_models.json'
+      - 'app.json'
+      - 'tools/**'
+      - '.github/workflows/build-ios.yml'
+  workflow_dispatch:
+    inputs:
+      screens:
+        description: 'Also photograph the app in an iPhone and an iPad simulator (up to 10 more minutes)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLAMA_TAG: b11321
+
+jobs:
+  ios:
+    name: Build, test in the simulator, publish
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Get the project
+        uses: actions/checkout@v4
+
+      - name: Read who the app is (app.json)
+        run: |
+          python3 - >> "$GITHUB_ENV" <<'EOF'
+          import json, re
+          a = json.load(open("app.json"))
+          assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", a["file_name"]), "app.json: file_name may hold only letters, digits, dots, dashes and underscores"
+          print("APP_NAME=" + a["name"])
+          print("APP_FILE=" + a["file_name"])
+          print("APP_ID=" + a["app_id"])
+          EOF
+          # the build number: the version, the day and this repository's run number
+          echo "INGENIUM_BUILD=3.3.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "INGENIUM_PLATFORM=iPhone and iPad" >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
+      - name: Tools on this Mac
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+          df -h /
+
+      - name: Get llama.cpp ${{ env.LLAMA_TAG }}
+        run: git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
+
+      - name: Keep the built engine between builds
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: ingenium_ios_project/engine/IngeniumEngine.xcframework
+          key: ios-engine-${{ env.LLAMA_TAG }}-${{ hashFiles('native/**', 'ingenium_ios_project/engine/**') }}
+
+      - name: Build the engine (llama.cpp with Metal) for iPhone, iPad and the simulator
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        # run through bash: a file uploaded on GitHub's website is not marked runnable
+        run: bash ingenium_ios_project/engine/build_engine.sh third_party/llama.cpp
+
+      - name: Keep the downloaded models between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ingenium-models
+          key: models-ios-${{ hashFiles('mobile_models.json') }}
+
+      - name: Put the built-in models and the current page into the app
+        run: |
+          # the built-in models must be the ones the page's lineup names (R70)
+          python3 tools/check_lineup.py
+          python3 tools/prepare_builtin_model.py ios ingenium_ios_project/Ingenium/Models
+          python3 tools/app_page.py ingenium.html ingenium_ios_project/Ingenium/ingenium.html --build "$INGENIUM_BUILD"
+          cp THIRD_PARTY_NOTICES.txt ingenium_ios_project/Ingenium/THIRD_PARTY_NOTICES.txt
+
+      - name: Make the Xcode project
+        run: |
+          python3 tools/apply_app_config.py
+          cd ingenium_ios_project && xcodegen generate
+
+      - name: Build for the simulator and ask the built-in model a question
+        run: bash ingenium_ios_project/simulator_selftest.sh
+
+      # only when asked: Run workflow with "photograph", or [screens] in the commit message
+      - name: Photograph the app in an iPhone and an iPad simulator
+        if: inputs.screens || contains(github.event.head_commit.message, '[screens]')
+        continue-on-error: true
+        timeout-minutes: 10
+        run: bash ingenium_ios_project/simulator_shots.sh "$RUNNER_TEMP/screens"
+
+      - name: Keep the pictures with this run
+        if: inputs.screens || contains(github.event.head_commit.message, '[screens]')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screens
+          path: ${{ runner.temp }}/screens/*.jpg
+          retention-days: 14
+
+      - name: Build for iPhone and iPad (unsigned)
+        working-directory: ingenium_ios_project
+        run: |
+          xcodebuild -project Ingenium.xcodeproj -scheme Ingenium -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build -quiet
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Ingenium.app Payload/
+          zip -qry -1 "${APP_FILE}-iPhone-iPad-unsigned.ipa" Payload
+          if [ -f Payload/Ingenium.app/Models/builtin.json ]; then
+            # the same app without the built-in model, for anyone who wants that space back
+            cp "${APP_FILE}-iPhone-iPad-unsigned.ipa" "${APP_FILE}-iPhone-iPad-no-model-unsigned.ipa"
+            zip -q -d "${APP_FILE}-iPhone-iPad-no-model-unsigned.ipa" 'Payload/Ingenium.app/Models/*'
+          fi
+          ls -la ./*.ipa
+
+      - name: Publish to the Releases page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -- "ingenium_ios_project/${APP_FILE}-iPhone-iPad-unsigned.ipa" "${APP_FILE}-iPhone-iPad-unsigned.ipa"
+          if [ -f "ingenium_ios_project/${APP_FILE}-iPhone-iPad-no-model-unsigned.ipa" ]; then
+            set -- "$@" "ingenium_ios_project/${APP_FILE}-iPhone-iPad-no-model-unsigned.ipa" "${APP_FILE}-iPhone-iPad-no-model-unsigned.ipa"
+          fi
+          bash tools/publish_release.sh "$@"

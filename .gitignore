@@ -1,0 +1,30 @@
+# build output
+**/build/
+**/.gradle/
+**/.cxx/
+**/local.properties
+*.apk
+*.ipa
+*.aab
+# fetched at build time
+third_party/
+# the built-in models are downloaded by tools/prepare_builtin_model.py (they
+# are far bigger than GitHub allows in a repository)
+ingenium_android_project/app/src/main/assets/models/*.gguf
+ingenium_android_project/app/src/main/assets/models/*.txt
+ingenium_ios_project/Ingenium/Models/*.gguf
+ingenium_ios_project/Ingenium/Models/*.txt
+ingenium_ios_project/build/
+ingenium_ios_project/DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+/engine/
+*.before-engine-bake
+ingenium_android_project/app/src/main/assets/models/builtin.json
+ingenium_ios_project/Ingenium/Models/builtin.json
+ingenium_ios_project/Ingenium.xcodeproj/
+ingenium_ios_project/engine/build-ios-*/
+ingenium_ios_project/engine/include/
+ingenium_ios_project/engine/IngeniumEngine.xcframework/
+ingenium_ios_project/Payload/

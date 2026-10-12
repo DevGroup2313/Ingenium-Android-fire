@@ -1,0 +1,51 @@
+# INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+# NO LICENCE IS GRANTED. See LICENCE.txt.
+#
+# The iPhone and iPad app, described for XcodeGen (https://github.com/yonaskolb/XcodeGen).
+# The cloud build runs `xcodegen generate` to make Ingenium.xcodeproj, after
+# engine/build_engine.sh has built IngeniumEngine.xcframework.
+name: Ingenium
+options:
+  bundleIdPrefix: com.yannieforest
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "3.2"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    ENABLE_BITCODE: NO
+targets:
+  Ingenium:
+    type: application
+    platform: iOS
+    sources:
+      - path: Ingenium
+        excludes:
+          - "Models"
+          - "Models/**"
+      - path: Ingenium/Models
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - framework: engine/IngeniumEngine.xcframework
+        embed: false
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: Accelerate.framework
+      - sdk: WebKit.framework
+      - sdk: UniformTypeIdentifiers.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yannieforest.ingenium
+        PRODUCT_NAME: Ingenium
+        INFOPLIST_FILE: Ingenium/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_OBJC_BRIDGING_HEADER: Ingenium/Ingenium-Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(SRCROOT)/../native
+        OTHER_LDFLAGS: -lc++
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        DEAD_CODE_STRIPPING: YES
+        CODE_SIGN_STYLE: Manual
