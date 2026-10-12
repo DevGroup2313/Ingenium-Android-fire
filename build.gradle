@@ -1,0 +1,7 @@
+/*
+   INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+   NO LICENCE IS GRANTED. See LICENCE.txt.
+*/
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}

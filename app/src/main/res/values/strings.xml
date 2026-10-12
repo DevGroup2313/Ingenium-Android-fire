@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+  NO LICENCE IS GRANTED. See LICENCE.txt. Every distributed copy carries a
+  build marker.
+-->
+<resources>
+    <!-- app_name comes from app.json, through app/build.gradle -->
+</resources>

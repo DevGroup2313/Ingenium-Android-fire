@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+  NO LICENCE IS GRANTED. See LICENCE.txt.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- One permission: the internet. Ingenium runs its models on the device and
+         reaches the network only when asked: a connection the person sets up
+         (Claude, Ollama on another computer), web search or research switched
+         on with the + key, or a file fetched from GitHub. Plain http is allowed
+         because Ollama on a computer at home answers on a plain http address.
+         Model files are chosen with the system's document chooser, which needs
+         no storage permission. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- No adaptive icon on purpose: Fire OS draws the legacy seal as it is. -->
+
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="true"
+        android:largeHeap="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

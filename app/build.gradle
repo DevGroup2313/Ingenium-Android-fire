@@ -1,0 +1,185 @@
+/*
+   INGENIUM  |  Copyright (c) 2026 Yannie D. Forest. All rights reserved.
+   NO LICENCE IS GRANTED. See LICENCE.txt.
+
+   The Android and Fire tablet app: the Ingenium page in a WebView, plus the
+   native engine (llama.cpp built for the device) and a model library kept
+   inside the app, with one model built in.
+*/
+plugins {
+    id 'com.android.application'
+}
+
+// The shared engine source and llama.cpp live beside this project in the repository.
+def repoRoot = rootProject.projectDir.parentFile
+def nativeDir = new File(repoRoot, 'native').canonicalPath
+// Who the app is (name and id) comes from app.json at the repository's top,
+// so a new app packaged by Ingenium's builder installs beside Ingenium.
+def appFile = new File(repoRoot, 'app.json')
+def appCfg = appFile.exists() ? new groovy.json.JsonSlurper().parse(appFile) : [:]
+def appId = (appCfg.app_id ?: 'com.yannieforest.ingenium').toString()
+def appName = (appCfg.name ?: 'Ingenium').toString().replaceAll(/[^A-Za-z0-9 ._-]/, '').replaceAll(/\s+/, ' ').trim() ?: 'Ingenium'
+if (!(appId ==~ /[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)+/)) {
+    throw new GradleException("app.json: app_id '${appId}' must look like com.example.myapp (letters and digits, dots between)")
+}
+def llamaDir = (System.getenv('LLAMA_CPP_DIR') ?: new File(repoRoot, 'third_party/llama.cpp').path)
+def abiList = (project.findProperty('ingeniumAbis') ?: 'arm64-v8a,armeabi-v7a,x86_64').split(',')*.trim()
+def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '0') as int
+// Android installs an update only over an app whose version number is smaller.
+// Counting the minutes since 2026 began makes each build's number larger than
+// every earlier build's, from this repository or from a new one.
+def buildTime = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+def buildMinutes = (int) java.time.Duration.between(
+        java.time.Instant.parse('2026-01-01T00:00:00Z'), buildTime.toInstant()).toMinutes()
+def buildDay = buildTime.format(java.time.format.DateTimeFormatter.ofPattern('yyyyMMdd'))
+
+android {
+    namespace 'com.yannieforest.ingenium'
+    compileSdk 35
+    ndkVersion '27.3.13750724'
+
+    defaultConfig {
+        applicationId appId
+        resValue 'string', 'app_name', appName
+        minSdk 24
+        targetSdk 34
+        versionCode buildMinutes
+        // the cloud build passes the build number it also stamps into the page
+        versionName (System.getenv('INGENIUM_BUILD') ?: "3.2.${buildDay}.${runNumber}")
+        ndk { abiFilters(*abiList) }
+        externalNativeBuild {
+            cmake {
+                arguments "-DIE_NATIVE_DIR=${nativeDir}",
+                          "-DLLAMA_DIR=${llamaDir}",
+                          // several engine libraries share one C++ runtime
+                          '-DANDROID_STL=c++_shared',
+                          // the engine is always built optimised: a debug build of
+                          // llama.cpp is many times slower and would feel broken
+                          '-DCMAKE_BUILD_TYPE=Release'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.31.6'
+        }
+    }
+
+    signingConfigs {
+        ingenium {
+            // One fixed key, so a newer build installs over an older one and
+            // keeps your models and your work. See SIGNING.txt.
+            def ks = new File(repoRoot, 'signing/ingenium-release.keystore')
+            if (ks.exists()) {
+                storeFile ks
+                storePassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
+                keyAlias 'ingenium'
+                keyPassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.ingenium.storeFile ? signingConfigs.ingenium : signingConfigs.debug
+        }
+        debug {
+            signingConfig signingConfigs.ingenium.storeFile ? signingConfigs.ingenium : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The built-in model is read in place, straight out of the installed app,
+    // which needs it stored uncompressed.
+    androidResources {
+        noCompress 'gguf'
+    }
+
+    // The engine's processor parts are found by looking in the app's library
+    // folder, so the libraries are unpacked there when the app installs.
+    packaging {
+        jniLibs { useLegacyPackaging true }
+    }
+
+    // A lint complaint must never be the reason there is no app to install.
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
+
+// The finished app, as installed on tablets: ./gradlew ingeniumApk
+// The built-in model is read straight out of the installed app (memory
+// mapped), which needs it at a page-aligned place in the package. Android's
+// packager aligns stored files to 4 bytes only, so the release package is
+// realigned to 4096 bytes and signed again, then both are checked.
+tasks.register('ingeniumApk') {
+    group = 'build'
+    description = 'Builds app/build/outputs/apk/release/ingenium.apk, aligned and signed.'
+    dependsOn 'assembleRelease'
+    doLast {
+        def run = { List cmd ->
+            def p = new ProcessBuilder(cmd.collect { it.toString() }).redirectErrorStream(true).start()
+            p.inputStream.eachLine { println it }
+            if (p.waitFor() != 0) throw new GradleException("failed: ${cmd[0]}")
+        }
+        def btRoot = new File(android.sdkDirectory, 'build-tools')
+        def bt = btRoot.listFiles().findAll { new File(it, 'apksigner').exists() }.max { it.name }
+        if (bt == null) throw new GradleException('no Android build-tools with apksigner found')
+        def outDir = layout.buildDirectory.dir('outputs/apk/release').get().asFile
+        def unsigned = new File(outDir, 'ingenium-aligned.tmp.apk')
+        def out = new File(outDir, 'ingenium.apk')
+        run([new File(bt, 'zipalign'), '-f', '-p', '4096', new File(outDir, 'app-release.apk'), unsigned])
+        def sc = android.signingConfigs.ingenium.storeFile ? android.signingConfigs.ingenium : android.signingConfigs.debug
+        // --alignment-preserved: without it apksigner would put the model back on 4 bytes
+        run([new File(bt, 'apksigner'), 'sign', '--alignment-preserved', 'true', '--v4-signing-enabled', 'false',
+             '--ks', sc.storeFile, '--ks-pass', "pass:${sc.storePassword}",
+             '--ks-key-alias', sc.keyAlias, '--key-pass', "pass:${sc.keyPassword}", '--out', out, unsigned])
+        unsigned.delete()
+        run([new File(bt, 'zipalign'), '-c', '-p', '4096', out])
+        run([new File(bt, 'apksigner'), 'verify', out])
+        println "Ingenium app ready: ${out} (${(out.length() / 1048576).round()} MB)"
+
+        // The same app without the built-in model, for anyone who wants that space
+        // back. Signed with the same key, it installs over the full app and keeps
+        // every model added to it.
+        def liteCopy = new File(outDir, 'ingenium-no-model.tmp.apk')
+        def liteAligned = new File(outDir, 'ingenium-no-model-aligned.tmp.apk')
+        def lite = new File(outDir, 'ingenium-no-model.apk')
+        java.nio.file.Files.copy(new File(outDir, 'app-release.apk').toPath(), liteCopy.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        def zfs = java.nio.file.FileSystems.newFileSystem(liteCopy.toPath(), (ClassLoader) null)
+        try {
+            def models = zfs.getPath('/assets/models')
+            if (java.nio.file.Files.isDirectory(models)) {
+                def gone = []
+                java.nio.file.Files.list(models).withCloseable { st -> st.forEach { gone << it } }
+                gone.each { java.nio.file.Files.delete(it) }
+            }
+        } finally {
+            zfs.close()
+        }
+        // zipalign may print "header mismatch" while reading this copy: only the
+        // "version needed" field differs there, and what zipalign writes is consistent
+        run([new File(bt, 'zipalign'), '-f', '-p', '4096', liteCopy, liteAligned])
+        liteCopy.delete()
+        run([new File(bt, 'apksigner'), 'sign', '--alignment-preserved', 'true', '--v4-signing-enabled', 'false',
+             '--ks', sc.storeFile, '--ks-pass', "pass:${sc.storePassword}",
+             '--ks-key-alias', sc.keyAlias, '--key-pass', "pass:${sc.keyPassword}", '--out', lite, liteAligned])
+        liteAligned.delete()
+        run([new File(bt, 'zipalign'), '-c', '-p', '4096', lite])
+        run([new File(bt, 'apksigner'), 'verify', lite])
+        println "Without the built-in model: ${lite} (${(lite.length() / 1048576).round()} MB)"
+    }
+}
