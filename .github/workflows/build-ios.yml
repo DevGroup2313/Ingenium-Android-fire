@@ -11,17 +11,8 @@
 # engine, the page or the models change (or when started by hand).
 name: Build Ingenium for iPhone and iPad
 
+# Started by hand only (Actions, then Run workflow): Apple machines cost the most minutes.
 on:
-  push:
-    branches: ['**']
-    paths:
-      - 'ingenium_ios_project/**'
-      - 'native/**'
-      - 'ingenium.html'
-      - 'mobile_models.json'
-      - 'app.json'
-      - 'tools/**'
-      - '.github/workflows/build-ios.yml'
   workflow_dispatch:
     inputs:
       screens:
