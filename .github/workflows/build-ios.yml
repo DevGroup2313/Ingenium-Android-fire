@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Get the project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read who the app is (app.json)
         run: |
@@ -50,7 +50,7 @@ jobs:
           print("APP_ID=" + a["app_id"])
           EOF
           # the build number: the version, the day and this repository's run number
-          echo "INGENIUM_BUILD=3.4.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "INGENIUM_BUILD=3.5.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
           echo "INGENIUM_PLATFORM=iPhone and iPad" >> "$GITHUB_ENV"
           cat "$GITHUB_ENV"
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Keep the built engine between builds
         id: engine-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ingenium_ios_project/engine/IngeniumEngine.xcframework
           key: ios-engine-${{ env.LLAMA_TAG }}-${{ hashFiles('native/**', 'ingenium_ios_project/engine/**') }}
@@ -76,7 +76,7 @@ jobs:
         run: bash ingenium_ios_project/engine/build_engine.sh third_party/llama.cpp
 
       - name: Keep the downloaded models between builds
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ingenium-models
           key: models-ios-${{ hashFiles('mobile_models.json') }}

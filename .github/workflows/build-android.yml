@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 100
     steps:
       - name: Get the project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read who the app is (app.json)
         run: |
@@ -46,7 +46,7 @@ jobs:
           print("APP_ID=" + a["app_id"])
           EOF
           # the build number: the version, the day and this repository's run number
-          echo "INGENIUM_BUILD=3.4.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "INGENIUM_BUILD=3.5.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
           echo "INGENIUM_PLATFORM=Fire and Android" >> "$GITHUB_ENV"
           cat "$GITHUB_ENV"
 
@@ -58,7 +58,7 @@ jobs:
           df -h /
 
       - name: Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -67,7 +67,7 @@ jobs:
         run: git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
 
       - name: Keep the downloaded models between builds
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ingenium-models
           key: models-android-${{ hashFiles('mobile_models.json') }}
