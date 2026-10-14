@@ -45,7 +45,7 @@ android {
         targetSdk 34
         versionCode buildMinutes
         // the cloud build passes the build number it also stamps into the page
-        versionName (System.getenv('INGENIUM_BUILD') ?: "3.7.${buildDay}.${runNumber}")
+        versionName (System.getenv('INGENIUM_BUILD') ?: "3.8.${buildDay}.${runNumber}")
         ndk { abiFilters(*abiList) }
         externalNativeBuild {
             cmake {

@@ -28,3 +28,7 @@ ingenium_ios_project/engine/build-ios-*/
 ingenium_ios_project/engine/include/
 ingenium_ios_project/engine/IngeniumEngine.xcframework/
 ingenium_ios_project/Payload/
+
+# Python caches
+__pycache__/
+*.pyc
