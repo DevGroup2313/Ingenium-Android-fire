@@ -46,7 +46,7 @@ jobs:
           print("APP_ID=" + a["app_id"])
           EOF
           # the build number: the version, the day and this repository's run number
-          echo "INGENIUM_BUILD=3.5.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "INGENIUM_BUILD=3.6.$(date -u +%Y%m%d).${{ github.run_number }}" >> "$GITHUB_ENV"
           echo "INGENIUM_PLATFORM=Fire and Android" >> "$GITHUB_ENV"
           cat "$GITHUB_ENV"
 
