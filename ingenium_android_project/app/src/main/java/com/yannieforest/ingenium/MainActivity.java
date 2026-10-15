@@ -97,6 +97,10 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(true);
+        // R102: the tablet's own font size made the page's text larger inside panels of a fixed size, so the chat's
+        // keys and the conversations' list ran out of place on a Fire tablet. The page keeps its own sizes (Display,
+        // Text size, in Ingenium) and is shown at its own scale.
+        s.setTextZoom(100);
 
         selfTest = getIntent() != null && getIntent().getBooleanExtra("ingenium_selftest", false);
         pageTest = getIntent() != null && getIntent().getBooleanExtra("ingenium_pagetest", false);
