@@ -11,8 +11,16 @@
 # engine, the page or the models change (or when started by hand).
 name: Build Ingenium for iPhone and iPad
 
-# Started by hand only (Actions, then Run workflow): Apple machines cost the most minutes.
+# Starts when the page, the iPhone project or the page tool changes, as the other builds do (she found her iPhone
+# still on 3.12 after 4.0 shipped everywhere else: this build used to start by hand only). The repository is public,
+# so its Actions minutes are free. Also started by hand (Actions, then Run workflow).
 on:
+  push:
+    branches: ['**']
+    paths:
+      - 'ingenium.html'
+      - 'ingenium_ios_project/**'
+      - 'tools/app_page.py'
   workflow_dispatch:
     inputs:
       screens:
