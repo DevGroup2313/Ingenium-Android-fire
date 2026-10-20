@@ -77,7 +77,11 @@ public class MainActivity extends Activity {
     private Bridge bridge;
     private boolean selfTest, pageTest, selfTestStarted;
     private ValueCallback<Uri[]> filePathCallback;
-    private String pendingSaveB64;
+    /* 6.0: the saves waiting their turn ({name, mime, base64}); the first is the one whose dialog is open.
+       A single pending file was overwritten when the page saved several at once, while Android stacked
+       their Save dialogs, so names and contents crossed. */
+    private final java.util.ArrayDeque<String[]> saves = new java.util.ArrayDeque<>();
+    private boolean saveOpen;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -230,21 +234,35 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** The page's Save buttons: open the system Save dialog, then write there. */
+    /** The page's Save buttons: open the system Save dialog, then write there; one dialog at a time. */
     boolean saveFile(final String name, final String mime, final String b64) {
-        pendingSaveB64 = b64;
-        runOnUiThread(() -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType(mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
-                intent.putExtra(Intent.EXTRA_TITLE, name == null || name.isEmpty() ? "ingenium-export.bin" : name);
-                startActivityForResult(intent, SAVE_FILE_REQUEST);
-            } catch (Exception e) {
-                pendingSaveB64 = null;
-            }
-        });
+        if (b64 == null) return false;
+        synchronized (saves) {
+            saves.add(new String[]{ name == null || name.isEmpty() ? "ingenium-export.bin" : name,
+                    mime == null || mime.isEmpty() ? "application/octet-stream" : mime, b64 });
+        }
+        runOnUiThread(this::nextSave);
         return true;
+    }
+
+    /** On the UI thread: the Save dialog for the first file waiting, when none is open. */
+    private void nextSave() {
+        String[] s;
+        synchronized (saves) {
+            if (saveOpen || saves.isEmpty()) return;
+            saveOpen = true;
+            s = saves.peekFirst();
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType(s[1]);
+            intent.putExtra(Intent.EXTRA_TITLE, s[0]);
+            startActivityForResult(intent, SAVE_FILE_REQUEST);
+        } catch (Exception e) {
+            synchronized (saves) { saves.pollFirst(); saveOpen = false; }
+            nextSave();
+        }
     }
 
     @Override
@@ -287,8 +305,9 @@ public class MainActivity extends Activity {
             return;
         }
         if (requestCode == SAVE_FILE_REQUEST) {
-            String b64 = pendingSaveB64;
-            pendingSaveB64 = null;
+            String[] s;
+            synchronized (saves) { s = saves.pollFirst(); saveOpen = false; }
+            String b64 = s == null ? null : s[2];
             if (resultCode == RESULT_OK && data != null && data.getData() != null && b64 != null) {
                 try (OutputStream os = getContentResolver().openOutputStream(data.getData())) {
                     if (os != null) {
@@ -299,6 +318,7 @@ public class MainActivity extends Activity {
                     Log.w(TAG, "save failed: " + e);
                 }
             }
+            nextSave();
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
