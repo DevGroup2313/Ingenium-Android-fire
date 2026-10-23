@@ -89,6 +89,26 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: The signing key (from this repository's secrets, never from its files)
+        # 6.2: a key and its password live only in the repository's secrets (Settings, Secrets and variables, Actions):
+        # ANDROID_KEYSTORE_B64 (the .p12 or .keystore file, as base64), ANDROID_KEYSTORE_PASSWORD, and ANDROID_KEY_ALIAS when
+        # its name is not "app". See signing/SIGNING.txt.
+        env:
+          KEY_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEY_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          mkdir -p signing
+          if [ -n "$KEY_B64" ] && [ -n "$KEY_PASS" ]; then
+            printf '%s' "$KEY_B64" | base64 -d > signing/release.keystore
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+            [ -n "$KEY_ALIAS" ] && echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "Signed with the key in this repository's secrets."
+          elif [ -f signing/ingenium-release.keystore ]; then
+            echo "::warning::Signed with the old key in signing/, which has been seen in public: add ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD (signing/SIGNING.txt)."
+          else
+            echo "::warning::No signing key in the secrets: this build is signed with a throwaway key and the next build will not install over it."
+          fi
       - name: Build the app
         working-directory: ingenium_android_project
         # chmod: a file uploaded through GitHub's website is not marked runnable

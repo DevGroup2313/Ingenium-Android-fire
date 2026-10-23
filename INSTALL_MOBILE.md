@@ -201,7 +201,7 @@ about 14 and 16 minutes, so each used roughly 140 to 160 minutes of the
 allowance. Later builds reused the engine from GitHub's build cache and took
 about 7 minutes, roughly 70 allowance minutes. Android builds run on Linux, take about 25 minutes and count once. A change to these
 guides (the `.md` files) starts no build at all. Keep the repository private:
-it holds the app's signing key. These are GitHub's terms at the time of writing and may
+its files are the app's. (The signing key is kept in its secrets, never in its files: `signing/SIGNING.txt`.) These are GitHub's terms at the time of writing and may
 have changed; the account's **Settings**, then **Billing**, shows the current
 ones.
 

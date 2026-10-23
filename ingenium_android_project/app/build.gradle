@@ -69,14 +69,26 @@ android {
 
     signingConfigs {
         ingenium {
-            // One fixed key, so a newer build installs over an older one and
-            // keeps your models and your work. See SIGNING.txt.
-            def ks = new File(repoRoot, 'signing/ingenium-release.keystore')
-            if (ks.exists()) {
+            // One fixed key, so a newer build installs over an older one and keeps your models and your work. 6.2: the key
+            // comes from the repository's secrets (put in place as signing/release.keystore by the workflow) or a keystore
+            // you put there yourself, and its password only from the environment (ANDROID_KEYSTORE_PASSWORD), never from a
+            // file. See signing/SIGNING.txt.
+            def ks = new File(repoRoot, 'signing/release.keystore')
+            def pw = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            if (ks.exists() && pw) {
                 storeFile ks
-                storePassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
-                keyAlias 'ingenium'
-                keyPassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
+                storePassword pw
+                keyAlias (System.getenv('ANDROID_KEY_ALIAS') ?: 'app')
+                keyPassword pw
+            } else {
+                // until the owner's new key is in the secrets: the old key, which has been seen in public (signing/SIGNING.txt)
+                def old = new File(repoRoot, 'signing/ingenium-release.keystore')
+                if (old.exists()) {
+                    storeFile old
+                    storePassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
+                    keyAlias 'ingenium'
+                    keyPassword System.getenv('INGENIUM_KEYSTORE_PASSWORD') ?: 'ingenium-local-signing'
+                }
             }
         }
     }
