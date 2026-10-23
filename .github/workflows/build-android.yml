@@ -78,6 +78,9 @@ jobs:
           python3 tools/check_lineup.py
           python3 tools/prepare_builtin_model.py android ingenium_android_project/app/src/main/assets/models
           python3 tools/app_page.py ingenium.html ingenium_android_project/app/src/main/assets/ingenium.html --build "$INGENIUM_BUILD"
+          # 6.2: the licence says each release lists its fingerprint (BUILD_INFO.txt lists the page's; this copy is the page
+          # without its WebAssembly engine, with the build number stamped in)
+          echo "Fingerprint (SHA-256) of the page inside this build: $(sha256sum ingenium_android_project/app/src/main/assets/ingenium.html | cut -d' ' -f1)" | tee -a "$GITHUB_STEP_SUMMARY"
           cp THIRD_PARTY_NOTICES.txt ingenium_android_project/app/src/main/assets/THIRD_PARTY_NOTICES.txt
 
       - name: Android SDK parts
