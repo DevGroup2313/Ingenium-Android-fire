@@ -41,6 +41,6 @@ What is in this repository
   mobile_models.json             which model each app carries
   tools/                         small build helpers
   .github/workflows/             the cloud builds
-  signing/                       where the build puts the signing key from the secrets (see SIGNING.txt)
+  signing/                       the signing keys in one encrypted file, and the old key (seen in public) until the new one signs (see SIGNING.txt)
   licences/, THIRD_PARTY_NOTICES.txt   licences of the parts Ingenium uses
   bake_engine.py                 re-bakes the engine into ingenium.html

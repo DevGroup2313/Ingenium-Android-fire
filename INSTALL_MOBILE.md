@@ -14,19 +14,23 @@ built into it (from version 3.0), and it works with no connection at all.
 
 The first model of each pair answers quickly (the house Velox); the second
 thinks before it answers (the house Scriba), and the chat shows its thinking.
-Two more houses, Magister (the strongest the device holds) and Faber (the
+Two more houses, Magister (a larger model for hard questions) and Faber (the
 coding model), install from the Models page with one tap. A model in another
 form (safetensors, PyTorch, MLX) can be converted to GGUF on the device, under
 Convert a model on the same page.
 
 Each also comes in a copy without the built-in models
-(`Ingenium-Android-Fire-no-model.apk`, about 25 MB, and
-`Ingenium-iPhone-iPad-no-model-unsigned.ipa`, about 5 MB). See **Removing a model** below
-for when that copy is useful.
+(`Ingenium-Android-Fire-no-model.apk` and
+`Ingenium-iPhone-iPad-no-model-unsigned.ipa`, much smaller; the Releases page
+gives each file's size). See **Removing a model** below for when that copy is
+useful.
 
 Each device gets the models that suit it. Fire tablets usually have 2 to 4 GB
 of memory and run models on the processor alone, so they get two compact
-models. iPhones and iPads have more memory and a graphics chip the engine
+models. These suit tablets with 3 GB or more. On a 2 GB tablet the app's own
+estimate says they need more memory than the tablet can spare: there, Velox
+becomes the smaller LFM2.5 350M, and the Models page marks Scriba's model as
+heavy for the device. iPhones and iPads have more memory and a graphics chip the engine
 uses, so their thinking model is the larger Qwen3.5 2B.
 
 ## Where the files are
@@ -48,14 +52,18 @@ installed.
 
 1. On the tablet, open Silk (or another browser) and sign in to GitHub.
 2. Open this repository's Releases page and tap **Ingenium-Android-Fire.apk**.
-   It is a large download (about 720 MB), so use Wi-Fi.
+   It is a large download (about 1.5 GB: two models of about 730 MB each,
+   kept uncompressed so they can be read in place, and the app), so use Wi-Fi.
 3. Allow installing apps from this source when asked. On a Fire tablet this
    is Settings, then Security and Privacy, then **Apps from Unknown Sources**,
    for Silk or for the Docs app. You may turn it off again afterwards.
 4. Open the downloaded file and tap **Install**, then **Open**.
 
 A newer build installs over an older one and keeps your models and your work,
-because every build is signed with the same key (see `signing/SIGNING.txt`).
+because it is signed with the same key as the one before, or with a new key
+that the old one vouches for. Until the owner adds the new key's passphrase to
+the repository's secrets, builds are signed with the old key, which has been
+seen in public (see `signing/SIGNING.txt`).
 
 ## iPhone and iPad
 
@@ -129,7 +137,7 @@ been tried on a real device.
 
 | Device memory | Comfortable model size |
 | --- | --- |
-| 2 GB | up to about 1B parameters (under 0.8 GB) |
+| 2 GB | up to about 0.5B parameters (a file under about 0.4 GB) |
 | 3 to 4 GB | up to about 1.5B parameters (about 1 GB) |
 | 6 GB and more | up to about 4B parameters (about 2.5 GB) |
 
@@ -152,8 +160,11 @@ be very slow. The Models page warns you before that happens.
 * In a long chat the engine keeps what it has already read. For models that
   cannot cut their memory back (LFM2.5 and Qwen3.5 are such models), it
   saves a checkpoint near the end of each message and carries on from it.
-* Each model answers with the settings its makers recommend in its model
-  card (temperature, top-k and penalties).
+* Models from the families Ingenium knows (LFM2.5, Qwen3.5, Gemma 4, Mellum
+  and Qwen3-Coder) answer with the settings their makers recommend in their
+  model cards (temperature, top-k and penalties), whether they are Ingenium's
+  own or ones you add (known by the file's name). Other models use
+  Ingenium's general settings.
 * Files attached with the + key can be text, code, Word documents or PDFs,
   read on the device. A file longer than the model's memory keeps its opening
   and passages from across it, and each message brings the passages that
@@ -166,11 +177,16 @@ be very slow. The Models page warns you before that happens.
   tablet or phone, enter the address and pairing code it shows in the same
   card and tap Connect. The chat then uses the computer's models (replies
   come from its engine), and the source row under the chat switches back to
-  the device's own. Nothing leaves the home network.
+  the device's own. Questions and replies go only to the computer you pair
+  with, on the same network. They are not encrypted, so share only on a
+  network you trust, such as your home Wi-Fi.
 * The apps run their models with no connection. They use the network only
   when you ask: a connection you set up in Settings (another computer running
   Ingenium, Ollama, or Claude), Web search or Research switched on with the
-  + key beside the message box, or a file fetched from GitHub. The Android
+  + key beside the message box, a model you install from the Models page, a
+  file fetched from GitHub, a look-up of a reference in Fontes, Scriba's
+  speech model the first time you record, or Dictate where the device's
+  speech service is online. The Android
   app has the internet permission for this; the iPhone and iPad app may ask
   once to find devices on your local network (for another computer running
   Ingenium or Ollama). Each app's test on GitHub also tries the internet once
@@ -201,7 +217,7 @@ about 14 and 16 minutes, so each used roughly 140 to 160 minutes of the
 allowance. Later builds reused the engine from GitHub's build cache and took
 about 7 minutes, roughly 70 allowance minutes. Android builds run on Linux, take about 25 minutes and count once. A change to these
 guides (the `.md` files) starts no build at all. Keep the repository private:
-its files are the app's. (The signing key is kept in its secrets, never in its files: `signing/SIGNING.txt`.) These are GitHub's terms at the time of writing and may
+its files are the app's. (The signing keys are kept in this repository in one encrypted file, and only its passphrase is kept in the repository's secrets; until that secret is added, builds are signed with the old key, which has been seen in public: `signing/SIGNING.txt`.) These are GitHub's terms at the time of writing and may
 have changed; the account's **Settings**, then **Billing**, shows the current
 ones.
 
