@@ -154,13 +154,29 @@ tasks.register('ingeniumApk') {
         def out = new File(outDir, 'ingenium.apk')
         run([new File(bt, 'zipalign'), '-f', '-p', '4096', new File(outDir, 'app-release.apk'), unsigned])
         def sc = android.signingConfigs.ingenium.storeFile ? android.signingConfigs.ingenium : android.signingConfigs.debug
+        // 6.7: the signing lineage. When the workflow has opened the key bundle (ING_LINEAGE, ING_OLD_KEYSTORE), the old key
+        // signs for Android 7 and 8 and vouches for the new key, which signs for Android 9 and newer (APK Signature Scheme
+        // v3), so an installed app updates without being removed. Passwords are read from the environment, not the command line.
+        def lineage = System.getenv('ING_LINEAGE'), oldKs = System.getenv('ING_OLD_KEYSTORE')
+        def rotating = lineage && oldKs && new File(lineage).exists() && new File(oldKs).exists() && System.getenv('ING_OLD_KEY_PASS')
+        def signArgs = { File src, File dst ->
+            def a = [new File(bt, 'apksigner'), 'sign', '--alignment-preserved', 'true', '--v4-signing-enabled', 'false']
+            if (rotating) {
+                a += ['--ks', oldKs, '--ks-key-alias', 'ingenium', '--ks-pass', 'env:ING_OLD_KEY_PASS', '--key-pass', 'env:ING_OLD_KEY_PASS',
+                      '--next-signer', '--ks', sc.storeFile, '--ks-key-alias', sc.keyAlias,
+                      '--ks-pass', 'env:ANDROID_KEYSTORE_PASSWORD', '--key-pass', 'env:ANDROID_KEYSTORE_PASSWORD',
+                      '--lineage', lineage, '--rotation-min-sdk-version', '28']
+            } else {
+                a += ['--ks', sc.storeFile, '--ks-pass', "pass:${sc.storePassword}", '--ks-key-alias', sc.keyAlias, '--key-pass', "pass:${sc.keyPassword}"]
+            }
+            a + ['--out', dst, src]
+        }
+        println(rotating ? 'Signing through the lineage: the old key for Android 7 and 8, the new key for Android 9 and newer.' : 'Signing with one key.')
         // --alignment-preserved: without it apksigner would put the model back on 4 bytes
-        run([new File(bt, 'apksigner'), 'sign', '--alignment-preserved', 'true', '--v4-signing-enabled', 'false',
-             '--ks', sc.storeFile, '--ks-pass', "pass:${sc.storePassword}",
-             '--ks-key-alias', sc.keyAlias, '--key-pass', "pass:${sc.keyPassword}", '--out', out, unsigned])
+        run(signArgs(unsigned, out))
         unsigned.delete()
         run([new File(bt, 'zipalign'), '-c', '-p', '4096', out])
-        run([new File(bt, 'apksigner'), 'verify', out])
+        run([new File(bt, 'apksigner'), 'verify', '--min-sdk-version', '24', '--print-certs', out])
         println "Ingenium app ready: ${out} (${(out.length() / 1048576).round()} MB)"
 
         // The same app without the built-in model, for anyone who wants that space
@@ -186,9 +202,7 @@ tasks.register('ingeniumApk') {
         // "version needed" field differs there, and what zipalign writes is consistent
         run([new File(bt, 'zipalign'), '-f', '-p', '4096', liteCopy, liteAligned])
         liteCopy.delete()
-        run([new File(bt, 'apksigner'), 'sign', '--alignment-preserved', 'true', '--v4-signing-enabled', 'false',
-             '--ks', sc.storeFile, '--ks-pass', "pass:${sc.storePassword}",
-             '--ks-key-alias', sc.keyAlias, '--key-pass', "pass:${sc.keyPassword}", '--out', lite, liteAligned])
+        run(signArgs(liteAligned, lite))
         liteAligned.delete()
         run([new File(bt, 'zipalign'), '-c', '-p', '4096', lite])
         run([new File(bt, 'apksigner'), 'verify', lite])

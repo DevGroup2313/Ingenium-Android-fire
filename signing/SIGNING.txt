@@ -4,30 +4,43 @@ See LICENCE.txt.
 The signing key
 ===============
 
-Android installs an update over an existing app only when both are signed
-with the same key. So every build of the Android and Fire app is signed with
-one key, and a newer build installs over the older one and keeps your models
-and your work.
+Android installs an update over an existing app only when the update is
+signed by the same key, or by a new key that the old key has vouched for.
 
-Since 6.2 the key and its password live only in this repository's secrets,
-never in its files. On github.com open Settings, Secrets and variables,
-Actions, and add:
+Ingenium's old key was seen in public, so it is being replaced. On
+25 October 2026 a new key was made, together with a record in which the
+old key vouches for the new one (lineage-2026.bin). Both keys are kept in
+one encrypted file, ingenium-signing-2026.gpg (AES-256). It opens only
+with one passphrase, which is never written in this repository.
 
-  ANDROID_KEYSTORE_B64       the key file (.p12 or .keystore), as base64
-  ANDROID_KEYSTORE_PASSWORD  its password
-  ANDROID_KEY_ALIAS          only if the key's name is not "app"
+What the owner does, once
+-------------------------
 
-Ingenium's Fabrica makes a key on your own device and saves it as a .p12
-file (Save this key). Keep the file and its password safe, away from the
-computer: anyone holding both could sign an app that installs over yours.
+1. On github.com, open this repository (Ingenium-Android-fire).
+2. Open Settings, then Secrets and variables, then Actions.
+3. Press New repository secret.
+4. Name: ANDROID_SIGNING_PASSPHRASE
+   Secret: the passphrase you were given (paste it exactly).
+5. Press Add secret.
+6. Open Actions, choose "Build Ingenium for Fire and Android", and press
+   Run workflow. The next build is signed with the new key.
 
-The key that was kept in this folder (ingenium-release.keystore) has been
-carried inside earlier Ingenium pages, which are public, so it is being
-replaced. Until the new key is in the secrets, the build still uses the old
-one and says so in its log. The change to the new key is made so that an
-installed app updates without being removed first (a signing lineage,
-security/key_rotation_*.sh in the Mac mini repository); after it, an app
-signed with the old key alone no longer installs over yours.
+What happens then
+-----------------
+
+- The Fire tablet updates Ingenium as usual. Nothing is removed and your
+  models and work stay.
+- From then on, an app signed with the old key alone no longer installs
+  over yours. This is what protects you.
+- The build log says "Signed with the new key". The old key's file
+  (ingenium-release.keystore) can then be deleted from this folder.
+
+Keep the passphrase safe and private, with a copy away from the computer.
+Anyone with this repository and the passphrase could sign apps as you.
+Without the passphrase, the encrypted file is of no use to anyone.
+
+Until the secret is added, builds are still signed with the old key, so
+the apps keep updating, and the build log says so.
 
 The iPhone and iPad app is not signed here: Apple requires you to sign it
 with your own Apple ID when you install it (see INSTALL_MOBILE.md).

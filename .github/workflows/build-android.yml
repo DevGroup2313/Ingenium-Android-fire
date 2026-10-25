@@ -93,22 +93,46 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: The signing key (from this repository's secrets, never from its files)
-        # 6.2: a key and its password live only in the repository's secrets (Settings, Secrets and variables, Actions):
-        # ANDROID_KEYSTORE_B64 (the .p12 or .keystore file, as base64), ANDROID_KEYSTORE_PASSWORD, and ANDROID_KEY_ALIAS when
-        # its name is not "app". See signing/SIGNING.txt.
+        # 6.7: the new key (made 25 October 2026) and the old one ride in signing/ingenium-signing-2026.gpg, encrypted with
+        # AES-256 under one passphrase that lives only in the secret ANDROID_SIGNING_PASSPHRASE. With it, the app is signed
+        # through the signing lineage (signing/lineage-2026.bin): the old key vouches for the new one, so an installed app
+        # updates without being removed, and from then on an app signed with the old key alone no longer installs over it.
+        # Before 6.7: ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS still work. See signing/SIGNING.txt.
         env:
+          SIGN_PASS: ${{ secrets.ANDROID_SIGNING_PASSPHRASE }}
           KEY_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KEY_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           mkdir -p signing
-          if [ -n "$KEY_B64" ] && [ -n "$KEY_PASS" ]; then
+          if [ -n "$SIGN_PASS" ] && [ -f signing/ingenium-signing-2026.gpg ]; then
+            S="$RUNNER_TEMP/ingenium-signing"; mkdir -p -m 700 "$S"
+            export GNUPGHOME="$S/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
+            printf '%s' "$SIGN_PASS" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 \
+              --decrypt signing/ingenium-signing-2026.gpg | tar -x -C "$S" \
+              || { echo "::error::ANDROID_SIGNING_PASSPHRASE does not open signing/ingenium-signing-2026.gpg."; exit 1; }
+            NEWPW=$(cat "$S/new.pw"); OLDPW=$(cat "$S/old.pw")
+            echo "::add-mask::$NEWPW"; echo "::add-mask::$OLDPW"
+            cp "$S/ingenium-release-2026.p12" signing/release.keystore
+            {
+              echo "ANDROID_KEYSTORE_PASSWORD=$NEWPW"
+              echo "ANDROID_KEY_ALIAS=$(cat "$S/alias")"
+              echo "ING_OLD_KEYSTORE=$S/old.keystore"
+              echo "ING_OLD_KEY_PASS=$OLDPW"
+              echo "ING_LINEAGE=$GITHUB_WORKSPACE/signing/lineage-2026.bin"
+            } >> "$GITHUB_ENV"
+            echo "Signed with the new key (25 October 2026), handed over from the old key by the signing lineage."
+            if [ -f signing/ingenium-release.keystore ]; then
+              echo "::notice::The new key signs Ingenium now. The old key's file, signing/ingenium-release.keystore, is no longer needed in this repository and can be deleted."
+            fi
+          elif [ -n "$KEY_B64" ] && [ -n "$KEY_PASS" ]; then
             printf '%s' "$KEY_B64" | base64 -d > signing/release.keystore
+            echo "::add-mask::$KEY_PASS"
             echo "ANDROID_KEYSTORE_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
             [ -n "$KEY_ALIAS" ] && echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "Signed with the key in this repository's secrets."
           elif [ -f signing/ingenium-release.keystore ]; then
-            echo "::warning::Signed with the old key in signing/, which has been seen in public: add ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASSWORD (signing/SIGNING.txt)."
+            echo "::warning::Signed with the old key, which has been seen in public. Add the secret ANDROID_SIGNING_PASSPHRASE (signing/SIGNING.txt) and the next build moves the app to the new key."
           else
             echo "::warning::No signing key in the secrets: this build is signed with a throwaway key and the next build will not install over it."
           fi
