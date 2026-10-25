@@ -92,6 +92,12 @@ final class Bridge {
             return;
         }
         switch (method) {
+            case "saveFile": {
+                // 6.7: saving comes through the same channel as every other call (the web message listener)
+                boolean saved = act.saveFile(args.optString("name"), args.optString("mime"), args.optString("b64"));
+                if (!callId.isEmpty()) { if (saved) replyOk(callId, ok()); else replyErr(callId, "the file was not saved"); }
+                break;
+            }
             case "info":
                 io.execute(() -> replyOk(callId, info()));
                 break;

@@ -143,6 +143,20 @@ jobs:
           chmod +x gradlew
           ./gradlew ingeniumApk --no-daemon --stacktrace
 
+      - name: Forget the signing keys (nothing after this step can read them)
+        # 6.7 (security audit): the keys opened for signing, their passwords and the lineage's paths leave the runner as
+        # soon as the app is signed, so the emulator check and the publishing steps, and any action they use, never see them
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/ingenium-signing" signing/release.keystore
+          {
+            echo "ANDROID_KEYSTORE_PASSWORD="
+            echo "ING_OLD_KEY_PASS="
+            echo "ING_OLD_KEYSTORE="
+            echo "ING_LINEAGE="
+          } >> "$GITHUB_ENV"
+          echo "The signing keys are gone from this runner."
+
       - name: Check the engine's processor parts are in the app
         # 64-bit ARM carries one processor part per chip generation; the
         # engine picks the best at start, so a missing one is a broken app

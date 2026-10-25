@@ -36,6 +36,11 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
     // MARK: messages from the page
 
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
+        // 6.7 (security audit): WebKit defines this handler in every frame, including the sandboxed frames in which Ingenium
+        // shows pages it did not write (a model's page, an app sent as a file, the preview). Only Ingenium's own page, the
+        // main frame served from the app's own scheme, may speak to the engine, the model library or the network.
+        let frame = message.frameInfo
+        guard frame.isMainFrame, frame.securityOrigin.protocol.lowercased() == AppSchemeHandler.scheme else { return }
         guard let text = message.body as? String,
               let obj = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else { return }
         let callId = obj["callId"] as? String ?? ""

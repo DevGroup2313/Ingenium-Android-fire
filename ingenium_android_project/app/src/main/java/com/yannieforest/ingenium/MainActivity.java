@@ -41,6 +41,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -109,8 +111,29 @@ public class MainActivity extends Activity {
         selfTest = getIntent() != null && getIntent().getBooleanExtra("ingenium_selftest", false);
         pageTest = getIntent() != null && getIntent().getBooleanExtra("ingenium_pagetest", false);
         bridge = new Bridge(this, webView);
-        // Only the app's own page is ever loaded, so only Ingenium's code can reach this.
-        webView.addJavascriptInterface(bridge, "IngeniumNative");
+        // 6.7 (security audit): Ingenium shows pages it did not write (a model's page, an app sent as a file, the preview) in
+        // sandboxed frames. A JavaScript interface reaches every frame, those included, and cannot tell who called it. A web
+        // message listener is given only to frames of the app's own address, and says whether a message came from the main
+        // frame, so only Ingenium's own page can speak to the engine, the model library, the network and saving. Calls are
+        // handled off the main thread, one at a time, as the JavaScript interface handled them. On a web view too old for
+        // listeners, the interface is kept as before.
+        boolean listening = false;
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            try {
+                final java.util.concurrent.ExecutorService calls = java.util.concurrent.Executors.newSingleThreadExecutor();
+                WebViewCompat.addWebMessageListener(webView, "IngeniumNativeMsg", java.util.Collections.singleton("https://" + HOST),
+                        (view, message, sourceOrigin, isMainFrame, replyProxy) -> {
+                            if (!isMainFrame || message == null) return;
+                            final String data = message.getData();
+                            if (data == null) return;
+                            calls.execute(() -> bridge.call(data));
+                        });
+                listening = true;
+            } catch (Exception e) {
+                Log.w(TAG, "the web message listener could not be added; using the JavaScript interface", e);
+            }
+        }
+        if (!listening) webView.addJavascriptInterface(bridge, "IngeniumNative");
 
         final WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
