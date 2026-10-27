@@ -8,8 +8,9 @@ Android installs an update over an existing app only when the update is
 signed by the same key, or by a new key that the old key has vouched for.
 
 Ingenium's old key was seen in public, so it is being replaced. On
-25 October 2026 a new key was made, together with a record in which the
-old key vouches for the new one (lineage-2026.bin). Both keys are kept in
+27 October 2026 a new key was made, together with a record in which the
+old key vouches for the new one (lineage-2026.bin). (The key made on
+25 October was replaced in turn: its passphrase never reached the owner.) Both keys are kept in
 one encrypted file, ingenium-signing-2026.gpg (AES-256). It opens only
 with one passphrase, which is never written in this repository.
 
