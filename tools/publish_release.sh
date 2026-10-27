@@ -15,6 +15,13 @@ TAG="latest"
 APP="${APP_NAME:-Ingenium}"
 TITLE="$APP (latest build)"
 NOTES_FILE="$RUNNER_TEMP/notes.md"
+# 6.8: every branch publishes to this one release, so a build never replaces a newer one of the same platform: an older
+# branch's build (its version is lower) is kept with its own run only. (The Forge's Fire APK was replaced so, 25 October 2026.)
+HAVE="$(gh release view "$TAG" --json body --jq .body 2>/dev/null | grep -F "(${INGENIUM_PLATFORM:-?})" | sed -n 's/^\* Build \*\*\([^*]*\)\*\*.*/\1/p' | head -n 1 || true)"
+if [ -n "$HAVE" ] && [ -n "${INGENIUM_BUILD:-}" ] && [ "$HAVE" != "${INGENIUM_BUILD:-}" ] && [ "$(printf '%s\n%s\n' "$HAVE" "${INGENIUM_BUILD:-}" | sort -V | tail -n 1)" = "$HAVE" ]; then
+  echo "::warning::The Releases page already has build $HAVE for ${INGENIUM_PLATFORM:-this platform}, newer than this build (${INGENIUM_BUILD:-}). It stays there; this build is kept with its run only."
+  exit 0
+fi
 
 # move the tag to this build, then make sure the release exists
 git tag -f "$TAG" "$GITHUB_SHA"
