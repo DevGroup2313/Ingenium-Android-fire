@@ -90,7 +90,7 @@ jobs:
           "$SDKM" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724" "cmake;3.31.6" > /dev/null
 
       - name: Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: The signing key (from this repository's secrets, never from its files)
         # 6.7: the new key (made 25 October 2026) and the old one ride in signing/ingenium-signing-2026.gpg, encrypted with

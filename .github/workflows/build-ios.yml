@@ -118,7 +118,7 @@ jobs:
       - name: Keep the pictures with this run
         if: inputs.screens || contains(github.event.head_commit.message, '[screens]')
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ios-screens
           path: ${{ runner.temp }}/screens/*.jpg
