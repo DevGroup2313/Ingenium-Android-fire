@@ -14,6 +14,7 @@ import android.app.ActivityManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -153,6 +154,23 @@ final class Bridge {
             case "net":
                 net.execute(() -> doNet(callId, args));
                 break;
+            // 6.9.1: an https address opened in the device's own browser (GitHub's own sign-in page, a build on GitHub)
+            case "openUrl": {
+                final String u = args.optString("url", "");
+                if (!u.startsWith("https://") || u.indexOf(' ') >= 0 || u.indexOf('"') >= 0 || u.indexOf('\'') >= 0 || u.indexOf('<') >= 0) {
+                    replyErr(callId, "only an https address can be opened");
+                    break;
+                }
+                ui.post(() -> {
+                    try {
+                        act.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)));
+                        replyOk(callId, ok());
+                    } catch (Exception e) {
+                        replyErr(callId, message(e));
+                    }
+                });
+                break;
+            }
             case "appearance": {
                 final boolean dark = args.optBoolean("dark", false);
                 final String top = args.optString("top", ""), back = args.optString("back", "");

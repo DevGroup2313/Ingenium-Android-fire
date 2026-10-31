@@ -17,8 +17,8 @@
       "name": "LFM2.5 1.2B Thinking",
       "file": "LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
       "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/main/LFM2.5-1.2B-Thinking-Q4_K_M.gguf",
-      "sha256": "7223a2202405b02e8e1e6c5baa543c43dc98c1d9741a5c2a0ee1583212e1231b",
-      "size": 730895360,
+      "sha256": "4a1e1824f71091f368137b6966094461019f6af3a5aadd96033bee59fc9eaeea",
+      "size": 730899072,
       "licence": "LFM-Open-License-v1.0.txt",
       "licence_url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking/raw/main/LICENSE",
       "why": "Scriba on Fire tablets and Android: the same small model trained to reason first, so the thinking bar shows its thoughts."

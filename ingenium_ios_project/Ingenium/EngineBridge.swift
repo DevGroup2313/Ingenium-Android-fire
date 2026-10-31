@@ -76,6 +76,13 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
             }
         case "net":
             doNet(callId, args)
+        // 6.9.1: an https address opened in Safari (GitHub's own sign-in page, a build on GitHub)
+        case "openUrl":
+            let u = args["url"] as? String ?? ""
+            guard let url = URL(string: u), url.scheme?.lowercased() == "https", !u.contains(" "), !u.contains("\""), !u.contains("'"), !u.contains("<") else {
+                replyErr(callId, "only an https address can be opened"); return
+            }
+            DispatchQueue.main.async { UIApplication.shared.open(url); self.replyOk(callId, ["ok": true]) }
         case "netAbort":
             let req = args["req"] as? String ?? ""
             netLock.lock(); let t = netTasks.removeValue(forKey: req); netLock.unlock()
