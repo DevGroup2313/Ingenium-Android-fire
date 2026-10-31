@@ -18,7 +18,10 @@ NOTES_FILE="$RUNNER_TEMP/notes.md"
 # 6.8: every branch publishes to this one release, so a build never replaces a newer one of the same platform: an older
 # branch's build (its version is lower) is kept with its own run only. (The Forge's Fire APK was replaced so, 25 October 2026.)
 HAVE="$(gh release view "$TAG" --json body --jq .body 2>/dev/null | grep -F "(${INGENIUM_PLATFORM:-?})" | sed -n 's/^\* Build \*\*\([^*]*\)\*\*.*/\1/p' | head -n 1 || true)"
-if [ -n "$HAVE" ] && [ -n "${INGENIUM_BUILD:-}" ] && [ "$HAVE" != "${INGENIUM_BUILD:-}" ] && [ "$(printf '%s\n%s\n' "$HAVE" "${INGENIUM_BUILD:-}" | sort -V | tail -n 1)" = "$HAVE" ]; then
+# 6.9.1: a build number is <version>.<day>.<run>, and the version may have two parts (6.9) or three (6.9.1); to compare two
+# builds, a two-part version is given a third part of 0, so 6.9.1.20261031.66 is seen as newer than 6.9.20261030.64.
+norm_build() { printf '%s' "$1" | sed -E 's/^([0-9]+\.[0-9]+)\.([0-9]{8}\.[0-9]+)$/\1.0.\2/'; }
+if [ -n "$HAVE" ] && [ -n "${INGENIUM_BUILD:-}" ] && [ "$HAVE" != "${INGENIUM_BUILD:-}" ] && [ "$(printf '%s\n%s\n' "$(norm_build "$HAVE")" "$(norm_build "${INGENIUM_BUILD:-}")" | sort -V | tail -n 1)" = "$(norm_build "$HAVE")" ]; then
   echo "::warning::The Releases page already has build $HAVE for ${INGENIUM_PLATFORM:-this platform}, newer than this build (${INGENIUM_BUILD:-}). It stays there; this build is kept with its run only."
   exit 0
 fi
