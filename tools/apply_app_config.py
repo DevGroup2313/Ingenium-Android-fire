@@ -32,9 +32,10 @@ def main():
     if n != 1:
         sys.exit("project.yml: expected one PRODUCT_BUNDLE_IDENTIFIER line, found %d" % n)
     build = os.environ.get("INGENIUM_BUILD", "").strip()
-    m = re.fullmatch(r"(\d+\.\d+)\.(\d+(?:\.\d+)?)", build)
+    # 6.9.1: the version may have three parts (6.9.1) as well as two (6.9); the day and the run number follow it
+    m = re.fullmatch(r"(\d+\.\d+(?:\.\d+)?)\.(\d{8}\.\d+)", build)
     if build and not m:
-        sys.exit("INGENIUM_BUILD '%s' must look like 2.1.20261002.7" % build)
+        sys.exit("INGENIUM_BUILD '%s' must look like 2.1.20261002.7 or 6.9.1.20261031.65" % build)
     if m:
         for key, value in (("MARKETING_VERSION", m.group(1)), ("CURRENT_PROJECT_VERSION", m.group(2))):
             text, n = re.subn(r'(?m)^(\s*%s:\s*).*$' % key, lambda mm: mm.group(1) + '"%s"' % value, text)
