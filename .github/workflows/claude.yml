@@ -1,0 +1,60 @@
+name: Claude Complete Remaining Tasks
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'What should Claude complete? Be specific (e.g., "Implement all TODO comments in src/ and add tests").'
+        required: true
+        type: string
+      base_branch:
+        description: 'Branch to base work on'
+        required: false
+        default: 'main'
+        type: string
+      max_turns:
+        description: 'Maximum agent turns'
+        required: false
+        default: '30'
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  complete-tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.base_branch }}
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            You are working in the repository ${{ github.repository }} on branch ${{ inputs.base_branch }}.
+
+            Task:
+            ${{ inputs.task }}
+
+            Instructions:
+            1. First, inspect the repository to understand its structure and existing conventions.
+            2. Identify all work required to fully complete the task above.
+            3. Implement the changes directly, updating code, tests, and documentation as needed.
+            4. Run the project's existing test/lint/build commands to verify your changes.
+            5. Commit your changes to a new branch prefixed with `claude/` and open a pull request against `${{ inputs.base_branch }}`.
+            6. In the PR description, list every change made and any remaining blockers.
+
+            Do not stop at analysis. Make the changes and open the PR.
+          claude_args: |
+            --max-turns ${{ inputs.max_turns }}
+            --allowedTools Edit,Read,Write,Bash
