@@ -179,7 +179,11 @@ be very slow. The Models page warns you before that happens.
   come from its engine), and the source row under the chat switches back to
   the device's own. Questions and replies go only to the computer you pair
   with, on the same network. They are not encrypted, so share only on a
-  network you trust, such as your home Wi-Fi.
+  network you trust, such as your home Wi-Fi. On the Fire tablet or an
+  iPhone there is no Find key: type the lending computer's number address
+  (for example 192.168.1.23; its card shows it, with a Copy key) and the
+  code, then Connect. Use the number, not the computer's name, and keep the
+  screen on while a long answer is on its way (6.9.3).
 * The apps run their models with no connection. They use the network only
   when you ask: a connection you set up in Settings (another computer running
   Ingenium, Ollama, or Claude), Web search or Research switched on with the
