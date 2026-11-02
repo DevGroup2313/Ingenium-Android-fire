@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: 'What should Claude complete? Be specific (e.g., "Implement all TODO comments in src/ and add tests").'
+        description: "What should Claude complete? Be specific."
         required: true
         type: string
       base_branch:
-        description: 'Branch to base work on'
+        description: "Branch to base work on"
         required: false
-        default: 'main'
+        default: "main"
         type: string
       max_turns:
-        description: 'Maximum agent turns'
+        description: "Maximum agent turns (raise if tasks are complex)"
         required: false
-        default: '30'
+        default: "60"
         type: string
 
 permissions:
@@ -28,6 +28,8 @@ permissions:
 jobs:
   complete-tasks:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,22 +41,35 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: true          # <-- CRITICAL: reveals the real error if this fails again
           prompt: |
-            You are working in the repository ${{ github.repository }} on branch ${{ inputs.base_branch }}.
+            Repository: ${{ github.repository }}
+            Base branch: ${{ inputs.base_branch }}
 
-            Task:
+            TASK:
             ${{ inputs.task }}
 
-            Instructions:
-            1. First, inspect the repository to understand its structure and existing conventions.
-            2. Identify all work required to fully complete the task above.
-            3. Implement the changes directly, updating code, tests, and documentation as needed.
-            4. Run the project's existing test/lint/build commands to verify your changes.
-            5. Commit your changes to a new branch prefixed with `claude/` and open a pull request against `${{ inputs.base_branch }}`.
-            6. In the PR description, list every change made and any remaining blockers.
+            OPERATING INSTRUCTIONS:
+            1. First inspect the repository: README, build files,
+               existing source layout, test layout, and any CLAUDE.md or
+               contributor docs. Follow existing conventions exactly.
+            2. Break the task into concrete sub-tasks and track them.
+            3. Implement every sub-task in code, not just describe it.
+               Update tests, types, docs, and configs as required.
+            4. Run the project's own verification commands
+               (install, lint, typecheck, test, build). Fix failures you
+               introduce. If a pre-existing failure is unrelated, note it
+               in the PR description.
+            5. Create a new branch named `claude/complete-remaining-tasks`
+               from `${{ inputs.base_branch }}`, commit your changes with a
+               clear message, and push it.
+            6. Open a pull request against `${{ inputs.base_branch }}`.
+               In the PR body, list: what was incomplete, what you changed,
+               verification commands you ran and their results, and any
+               remaining blockers that genuinely could not be completed.
 
-            Do not stop at analysis. Make the changes and open the PR.
+            Do not stop after analysis. The deliverable is a pushed branch
+            and an open pull request.
           claude_args: |
             --max-turns ${{ inputs.max_turns }}
-            --allowedTools Edit,Read,Write,Bash
+            # Do NOT add --output-format here; the action manages it internally.
