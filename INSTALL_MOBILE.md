@@ -59,6 +59,23 @@ installed.
    for Silk or for the Docs app. You may turn it off again afterwards.
 4. Open the downloaded file and tap **Install**, then **Open**.
 
+**If the full app does not install (6.10.2).** Installing it needs room on the
+tablet's own storage for the downloaded file and for the copy Android makes
+while installing it: about 3 GB free, and a memory card does not count
+(Settings, Storage shows what is free). This could not be measured on a Fire
+tablet here, so the figure is approximate. The dependable way, which needs far
+less room:
+
+1. Install **Ingenium-Android-Fire-no-model.apk** (57 MB) the same way.
+2. Open Ingenium, then the Models page. When the app has no models of its own,
+   the page offers them at the top: tap **Install both**. The same two models
+   (about 1.4 GB) come straight into the app on Wi-Fi, carry on where they
+   stopped if the connection drops, and are kept only when each matches its
+   fingerprint.
+
+If the full app still fails, the message the tablet shows (and the Fire OS
+version, in Settings, Device Options, System Updates) says why; send it on.
+
 A newer build installs over an older one and keeps your models and your work,
 because it is signed with the same key as the one before, or with a new key
 that the old one vouches for. Until the owner adds the new key's passphrase to

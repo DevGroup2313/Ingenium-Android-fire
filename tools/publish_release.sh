@@ -76,7 +76,7 @@ ALL="$( (gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null 
   while IFS= read -r n; do
     [ -n "$n" ] || continue
     case "$n" in
-      *-Android-Fire-no-model.apk) echo "| $n | The same Android app without the built-in model | Optional. Install it over the full app to free the built-in model's space; the models you added stay. |" ;;
+      *-Android-Fire-no-model.apk) echo "| $n | The same Android app without the built-in models (57 MB) | If the full app will not install (it needs about 3 GB free on the tablet's own storage while installing), install this one, open the Models page and tap Install both: the same two models come into the app, checked by fingerprint. Over the full app, it frees the built-in models' space; the models you added stay. |" ;;
       *-Android-Fire.apk) echo "| **$n** | Fire tablets and Android phones and tablets | Open it on the tablet and tap Install (allow \"Apps from Unknown Sources\" once). |" ;;
       *-iPhone-iPad-no-model-unsigned.ipa) echo "| $n | The same iPhone and iPad app without the built-in model | Optional. Install it with the same tool and Apple ID, over the full app. |" ;;
       *-iPhone-iPad-unsigned.ipa) echo "| **$n** | iPhone and iPad | Install from a computer with Sideloadly or AltStore, signing in with your Apple ID. |" ;;
