@@ -30,6 +30,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ingenium listens only while you press the microphone key in the message box, to write down what you say here on this device. The sound never leaves it.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Ingenium uses your home network only to use the models of your computer running Ingenium (or Ollama), when you set that up in Settings.</string>
 	<key>UIFileSharingEnabled</key>

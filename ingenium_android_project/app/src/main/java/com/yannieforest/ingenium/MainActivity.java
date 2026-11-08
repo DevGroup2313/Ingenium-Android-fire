@@ -12,9 +12,10 @@
      - Picking files works (a plain WebView ignores <input type="file">), and
        Save opens the system's own save dialog.
 
-   The app asks for no permissions at all. There is no INTERNET permission, so
-   Android itself keeps the app off the network; links to web pages open in
-   the device's browser instead.
+   The app asks for the internet (see AndroidManifest.xml) and, since 6.58, the
+   microphone, for dictation written down on this device; Android asks the
+   person before the microphone is first used. Links to web pages open in the
+   device's browser.
 */
 package com.yannieforest.ingenium;
 
@@ -56,6 +57,9 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 51426;
     private static final int SAVE_FILE_REQUEST = 51427;
     private static final int IMPORT_MODELS_REQUEST = 51428;
+    // 6.58: the microphone, asked for when the page first dictates
+    private static final int MIC_REQUEST = 51429;
+    private android.webkit.PermissionRequest pendingMic;
 
     /* The cloud build starts the app on an emulator with this flag: once the
        page is up, it waits for the built-in model, asks one question and writes
@@ -181,6 +185,34 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            // 6.58: dictation in the message box (modules/r254.js) is written down on this device. The page may use the
+            // microphone after Android asks the person once; only the app's own page is answered, and only for sound.
+            @Override
+            public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Uri o = request.getOrigin();
+                        boolean own = o != null && HOST.equals(o.getHost());
+                        boolean soundOnly = true;
+                        for (String r : request.getResources()) {
+                            if (!android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) soundOnly = false;
+                        }
+                        if (!own || !soundOnly) {
+                            request.deny();
+                            return;
+                        }
+                        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            request.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                        } else {
+                            if (pendingMic != null) pendingMic.deny();
+                            pendingMic = request;
+                            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, MIC_REQUEST);
+                        }
+                    }
+                });
+            }
+
             @Override
             public boolean onConsoleMessage(ConsoleMessage m) {
                 Log.println(m.messageLevel() == ConsoleMessage.MessageLevel.ERROR ? Log.ERROR : Log.INFO,
@@ -349,6 +381,24 @@ public class MainActivity extends Activity {
             synchronized (saves) { saves.pollFirst(); saveOpen = false; }
             nextSave();
         }
+    }
+
+    // 6.58: the person's answer to the microphone question, handed to the page's waiting request
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == MIC_REQUEST) {
+            android.webkit.PermissionRequest r = pendingMic;
+            pendingMic = null;
+            if (r != null) {
+                if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    r.grant(new String[]{android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                } else {
+                    r.deny();
+                }
+            }
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override

@@ -207,6 +207,17 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         present(ask, animated: true)
     }
 
+    // MARK: the microphone, for dictation (6.58)
+
+    // Dictation in the message box (modules/r254.js) is written down on this device. The page may use the microphone after iOS asks
+    // the person once (NSMicrophoneUsageDescription); only the app's own page, in its main frame, is answered, and only for sound.
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        let own = origin.protocol == AppSchemeHandler.scheme && frame.isMainFrame
+        decisionHandler(own && type == .microphone ? .grant : .deny)
+    }
+
     // MARK: alert, confirm and prompt from the page
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,

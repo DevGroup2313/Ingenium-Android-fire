@@ -13,6 +13,10 @@
          Model files are chosen with the system's document chooser, which needs
          no storage permission. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 6.58: the microphone, for dictation in the message box, which Ingenium writes down on this device with its own speech model
+         (modules/r254.js). Android asks the person the first time; only the app's own page is answered, and only for sound. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- No adaptive icon on purpose: Fire OS draws the legacy seal as it is. -->
 
