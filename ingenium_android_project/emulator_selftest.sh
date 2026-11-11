@@ -36,7 +36,8 @@ else
   adb shell am start -n "$ACTIVITY" --ez ingenium_pagetest true
   WANT="INGENIUM_SELFTEST PAGE"
 fi
-for i in $(seq 1 225); do
+# 6.80: 20 minutes (the page gives its own test 19): the emulator has needed 641 s for it, and 14 minutes left too little room
+for i in $(seq 1 300); do
   if adb logcat -d -s IngeniumPage:I | grep -c "$WANT" > /dev/null; then break; fi
   sleep 4
 done
