@@ -76,6 +76,12 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
             }
         case "net":
             doNet(callId, args)
+        // 6.80: the computers lending their models on this Wi-Fi, found as the computer apps find them; and what this device is
+        case "findLenders":
+            let device = EngineBridge.deviceInfo()
+            Task { await self.findLenders(callId, device) }
+        case "deviceInfo":
+            replyOk(callId, EngineBridge.deviceInfo())
         // 6.9.1: an https address opened in Safari (GitHub's own sign-in page, a build on GitHub)
         case "openUrl":
             let u = args["url"] as? String ?? ""
@@ -191,6 +197,109 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
 
     /// One request for the page, from the app itself: no website rule refuses it, and a
     /// streamed reply (Claude, Ollama) comes back to the page piece by piece.
+    // MARK: 6.80, the computers lending their models on this Wi-Fi
+
+    /// What this device is, for the computer that lends its models: named by its kind ("iPad", "iPhone"), never by its owner.
+    static func deviceInfo() -> [String: Any] {
+        let idiom = UIDevice.current.userInterfaceIdiom
+        return ["kind": idiom == .phone ? "phone" : "tablet", "name": UIDevice.current.model]
+    }
+
+    /// This device's own address on the Wi-Fi (en0 first, else any home network address), or nil.
+    private static func localIPv4() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>? = nil
+        guard getifaddrs(&ifaddr) == 0 else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var other: String? = nil
+        var p = ifaddr
+        while let cur = p {
+            let flags = Int32(cur.pointee.ifa_flags)
+            if let sa = cur.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET),
+               (flags & IFF_UP) != 0, (flags & IFF_LOOPBACK) == 0 {
+                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                if getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                    let ip = String(cString: host)
+                    let name = String(cString: cur.pointee.ifa_name)
+                    let home = ip.hasPrefix("192.168.") || ip.hasPrefix("10.") || ip.hasPrefix("172.")
+                    if name == "en0" && home { return ip }
+                    if other == nil && home { other = ip }
+                }
+            }
+            p = cur.pointee.ifa_next
+        }
+        return other
+    }
+
+    /// One address of the Wi-Fi asked on Ingenium's three ports; an address where nothing answers at all is left at once.
+    private static func helloAt(_ session: URLSession, _ ip: String) async -> [[String: Any]] {
+        var hits: [[String: Any]] = []
+        for port in 17860...17862 {
+            guard let url = URL(string: "http://" + ip + ":" + String(port) + "/ingenium/hello") else { continue }
+            var r = URLRequest(url: url, timeoutInterval: 1.5)
+            r.setValue(EngineBridge.netUA, forHTTPHeaderField: "User-Agent")
+            do {
+                let (data, resp) = try await session.data(for: r)
+                guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
+                      let h = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                      (h["app"] as? String) == "Ingenium" else { continue }
+                var hit: [String: Any] = [:]
+                hit["address"] = ip + ":" + String(port)
+                hit["computer"] = h["computer"] as? String ?? ""
+                hit["models"] = h["models"] as? Int ?? 0
+                hit["lends"] = h["lends"] as? Bool ?? true
+                hit["callins"] = h["callins"] as? Bool ?? false
+                hit["id"] = h["id"] as? String ?? ""
+                hit["kind"] = h["kind"] as? String ?? ""
+                hit["addresses"] = h["addresses"] as? [String] ?? []
+                hits.append(hit)
+            } catch let e as URLError where e.code == .cannotConnectToHost {
+                continue      // a device is there, but nothing on this port: the next port
+            } catch {
+                break         // nothing answered at all: no device at this address
+            }
+        }
+        return hits
+    }
+
+    /// Every address of this Wi-Fi (its /24, as the computer apps search), 48 at a time. The first time, iOS asks whether Ingenium
+    /// may find devices on the local network (Info.plist says why).
+    private func findLenders(_ callId: String, _ device: [String: Any]) async {
+        guard let me = EngineBridge.localIPv4(), let dot = me.lastIndex(of: ".") else {
+            replyOk(callId, ["found": [], "me": "", "error": "NONET", "device": device])
+            return
+        }
+        let base = String(me[...dot])
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 1.5
+        cfg.timeoutIntervalForResource = 4
+        cfg.waitsForConnectivity = false
+        let session = URLSession(configuration: cfg)
+        var ips: [String] = []
+        for i in 1...254 {
+            let ip = base + String(i)
+            if ip != me { ips.append(ip) }
+        }
+        var found: [[String: Any]] = []
+        await withTaskGroup(of: [[String: Any]].self) { group in
+            var next = 0
+            while next < ips.count && next < 48 {
+                let ip = ips[next]
+                next += 1
+                group.addTask { await EngineBridge.helloAt(session, ip) }
+            }
+            while let hits = await group.next() {
+                found.append(contentsOf: hits)
+                if next < ips.count {
+                    let ip = ips[next]
+                    next += 1
+                    group.addTask { await EngineBridge.helloAt(session, ip) }
+                }
+            }
+        }
+        session.invalidateAndCancel()
+        replyOk(callId, ["found": found, "me": me, "device": device])
+    }
+
     private func doNet(_ callId: String, _ args: [String: Any]) {
         let req = args["req"] as? String ?? callId
         guard let s = args["url"] as? String, let url = URL(string: s),

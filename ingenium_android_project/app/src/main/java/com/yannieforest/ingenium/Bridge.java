@@ -154,6 +154,17 @@ final class Bridge {
             case "net":
                 net.execute(() -> doNet(callId, args));
                 break;
+            // 6.80: the computers lending their models on this Wi-Fi, found as the computer apps find them; and what this device is
+            case "findLenders":
+                net.execute(() -> doFindLenders(callId));
+                break;
+            case "deviceInfo":
+                try {
+                    replyOk(callId, deviceInfo());
+                } catch (JSONException e) {
+                    replyErr(callId, message(e));
+                }
+                break;
             // 6.9.1: an https address opened in the device's own browser (GitHub's own sign-in page, a build on GitHub)
             case "openUrl": {
                 final String u = args.optString("url", "");
@@ -430,6 +441,132 @@ final class Bridge {
 
     /** One request for the page, from the app itself: no website rule refuses it, and a
      *  streamed reply (Claude, Ollama) comes back to the page piece by piece. */
+    /** 6.80: what this device is, for the computer that lends its models: a tablet or a phone, named by its kind, never by its owner. */
+    private JSONObject deviceInfo() throws JSONException {
+        boolean tablet = act.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        boolean amazon = "amazon".equalsIgnoreCase(Build.MANUFACTURER);
+        String name = amazon ? (tablet ? "Fire tablet" : "Fire phone") : (Build.MODEL == null || Build.MODEL.isEmpty() ? (tablet ? "Android tablet" : "Android phone") : Build.MODEL);
+        JSONObject o = new JSONObject();
+        o.put("kind", tablet ? "tablet" : "phone");
+        o.put("name", name);
+        return o;
+    }
+
+    /** 6.80: this device's own address on the Wi-Fi (a home network's: 10., 172.16 to 31., 192.168.), or null. */
+    private static String localIPv4() {
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> ifs = java.net.NetworkInterface.getNetworkInterfaces();
+            String other = null;
+            while (ifs != null && ifs.hasMoreElements()) {
+                java.net.NetworkInterface ni = ifs.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                java.util.Enumeration<java.net.InetAddress> as = ni.getInetAddresses();
+                while (as.hasMoreElements()) {
+                    java.net.InetAddress a = as.nextElement();
+                    if (a instanceof java.net.Inet4Address && a.isSiteLocalAddress()) {
+                        String ip = a.getHostAddress();
+                        if (ni.getName() != null && ni.getName().startsWith("wlan")) return ip;
+                        if (other == null) other = ip;
+                    }
+                }
+            }
+            return other;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 6.80: one address of the Wi-Fi asked on Ingenium's three ports: a port that answers is asked /ingenium/hello; an address
+        where nothing answers at all (no device there) is left at once. */
+    private static JSONArray helloAt(String ip) {
+        JSONArray hits = new JSONArray();
+        for (int port = 17860; port <= 17862; port++) {
+            java.net.Socket s = new java.net.Socket();
+            boolean open;
+            try {
+                s.connect(new java.net.InetSocketAddress(ip, port), 450);
+                open = true;
+            } catch (java.net.SocketTimeoutException t) {
+                try { s.close(); } catch (Exception ignored) { }
+                return hits;
+            } catch (Exception refused) {
+                open = false;
+            }
+            try { s.close(); } catch (Exception ignored) { }
+            if (!open) continue;
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL("http://" + ip + ":" + port + "/ingenium/hello").openConnection();
+                c.setConnectTimeout(1500);
+                c.setReadTimeout(2500);
+                c.setUseCaches(false);
+                c.setRequestProperty("User-Agent", NET_UA);
+                if (c.getResponseCode() != 200) continue;
+                StringBuilder sb = new StringBuilder();
+                try (InputStreamReader r = new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8)) {
+                    char[] buf = new char[4096];
+                    int n;
+                    while ((n = r.read(buf)) > 0 && sb.length() < 65536) sb.append(buf, 0, n);
+                }
+                JSONObject h = new JSONObject(sb.toString());
+                if (!"Ingenium".equals(h.optString("app"))) continue;
+                JSONObject hit = new JSONObject();
+                hit.put("address", ip + ":" + port);
+                hit.put("computer", h.optString("computer", ""));
+                hit.put("models", h.optInt("models", 0));
+                hit.put("lends", h.optBoolean("lends", true));
+                hit.put("callins", h.optBoolean("callins", false));
+                hit.put("id", h.optString("id", ""));
+                hit.put("kind", h.optString("kind", ""));
+                JSONArray ad = h.optJSONArray("addresses");
+                hit.put("addresses", ad != null ? ad : new JSONArray());
+                hits.put(hit);
+            } catch (Exception ignored) {
+            } finally {
+                if (c != null) c.disconnect();
+            }
+        }
+        return hits;
+    }
+
+    /** 6.80: every address of this Wi-Fi (its /24, as the computer apps search), 48 at a time. */
+    private void doFindLenders(String callId) {
+        ExecutorService pool = null;
+        try {
+            JSONObject res = new JSONObject();
+            JSONArray found = new JSONArray();
+            String me = localIPv4();
+            res.put("device", deviceInfo());
+            res.put("me", me == null ? "" : me);
+            if (me == null) {
+                res.put("found", found);
+                res.put("error", "NONET");
+                replyOk(callId, res);
+                return;
+            }
+            String base = me.substring(0, me.lastIndexOf('.') + 1);
+            pool = Executors.newFixedThreadPool(48, r -> new Thread(r, "ingenium-find"));
+            java.util.List<java.util.concurrent.Future<JSONArray>> jobs = new java.util.ArrayList<>();
+            for (int i = 1; i < 255; i++) {
+                final String ip = base + i;
+                if (ip.equals(me)) continue;
+                jobs.add(pool.submit(() -> helloAt(ip)));
+            }
+            for (java.util.concurrent.Future<JSONArray> f : jobs) {
+                try {
+                    JSONArray hits = f.get(20, TimeUnit.SECONDS);
+                    for (int k = 0; k < hits.length(); k++) found.put(hits.get(k));
+                } catch (Exception ignored) { }
+            }
+            res.put("found", found);
+            replyOk(callId, res);
+        } catch (Exception e) {
+            replyErr(callId, message(e));
+        } finally {
+            if (pool != null) pool.shutdownNow();
+        }
+    }
+
     private void doNet(String callId, JSONObject args) {
         final String req = args.optString("req", callId);
         final String url = args.optString("url");
