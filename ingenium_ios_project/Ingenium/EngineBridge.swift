@@ -82,6 +82,14 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
             Task { await self.findLenders(callId, device) }
         case "deviceInfo":
             replyOk(callId, EngineBridge.deviceInfo())
+        // 7.64: Ingenium itself, signed and checked, part two (SelfStore, SelfCore): the room's three calls, off the page's thread
+        case "selfCheck":
+            ioQueue.async { self.replyOk(callId, SelfStore.state()) }
+        case "selfSignaturePut":
+            let text = args["text"] as? String ?? ""
+            ioQueue.async { self.replyOk(callId, SelfStore.put(text)) }
+        case "selfSignatureGet":
+            ioQueue.async { self.replyOk(callId, SelfStore.get()) }
         // 6.9.1: an https address opened in Safari (GitHub's own sign-in page, a build on GitHub)
         case "openUrl":
             let u = args["url"] as? String ?? ""

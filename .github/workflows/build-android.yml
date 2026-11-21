@@ -63,6 +63,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # 7.64: the app's own check of its copy (SelfCore.java), held to the cases the computer app's own reading made (tools/selftest)
+      - name: The app's check of its own copy, against its cases (7.64)
+        run: |
+          mkdir -p "$RUNNER_TEMP/selfcore" && cp -r tools/selftest/vectors "$RUNNER_TEMP/selfcore/vectors"
+          javac -nowarn -d "$RUNNER_TEMP/selfcore/classes" ingenium_android_project/app/src/main/java/com/yannieforest/ingenium/SelfCore.java tools/selftest/SelfCoreTest.java
+          java -cp "$RUNNER_TEMP/selfcore/classes" com.yannieforest.ingenium.SelfCoreTest "$RUNNER_TEMP/selfcore/vectors" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "${PIPESTATUS[0]}" -eq 0
+
       - name: Get llama.cpp ${{ env.LLAMA_TAG }}
         run: git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
 

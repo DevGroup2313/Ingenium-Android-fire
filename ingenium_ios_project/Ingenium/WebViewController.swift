@@ -13,11 +13,17 @@ import WebKit
 /// Serves the app's bundled files at ingenium://app/<name>.
 final class AppSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "ingenium"
+    /// 7.64: while this copy stands refused (SelfCore), the app's own address gives none of it
+    static var refused = false
 
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { return }
         var path = url.path
         if path.isEmpty || path == "/" { path = "/ingenium.html" }
+        if AppSchemeHandler.refused {
+            task.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorNoPermissionsToReadFile))
+            return
+        }
         let file = Bundle.main.bundleURL.appendingPathComponent(String(path.dropFirst()))
         // stay inside the app bundle, and never hand out the models this way
         guard file.standardizedFileURL.path.hasPrefix(Bundle.main.bundleURL.standardizedFileURL.path),
@@ -50,6 +56,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         let config = WKWebViewConfiguration()
         config.setURLSchemeHandler(AppSchemeHandler(), forURLScheme: AppSchemeHandler.scheme)
         config.userContentController.add(bridge, name: "ingenium")
+        // 7.64: the refusal page's Check again
+        config.userContentController.add(SelfAgain(self), name: "ingeniumSelf")
         config.allowsInlineMediaPlayback = true
         config.websiteDataStore = .default()
 
@@ -87,7 +95,33 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        webView.load(URLRequest(url: URL(string: "\(AppSchemeHandler.scheme)://app/ingenium.html")!))
+        startPage()
+    }
+
+    /* 7.64 (Ingenium itself, signed and checked, part two): where a signature of hers is kept, this copy is checked before anything of it
+       runs (SelfCore, SelfStore). One that is not the one signed gets the app's own page in its place, saying which file and why; nothing
+       of it runs. A device with no signature kept opens at once; a fault in the check itself opens Ingenium as before. */
+    func startPage() {
+        let open = { [weak self] in
+            AppSchemeHandler.refused = false
+            self?.webView.load(URLRequest(url: URL(string: "\(AppSchemeHandler.scheme)://app/ingenium.html")!))
+        }
+        guard SelfStore.hasKept else { open(); return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let st = SelfStore.state()
+            var page: String? = nil
+            if (st["state"] as? String) == "changed", let t = SelfStore.bundled("self_refused.html").flatMap({ String(data: $0, encoding: .utf8) }) {
+                page = SelfCore.refusal(t, st, platform: SelfStore.platform)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if let p = page {
+                    print("INGENIUM_SELFCHECK REFUSED this copy is not the one signed")
+                    AppSchemeHandler.refused = true
+                    self.webView.loadHTMLString(p, baseURL: nil)
+                } else { open() }
+            }
+        }
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { darkPage ? .lightContent : .darkContent }
@@ -202,7 +236,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             guard let self = self else { return }
             self.askingStuck = false
             self.lastAnswer = Date()
-            self.webView.load(URLRequest(url: URL(string: "\(AppSchemeHandler.scheme)://app/ingenium.html")!))
+            self.startPage()
         })
         present(ask, animated: true)
     }
@@ -286,4 +320,13 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     else if(Date.now()-t0>120000){log('ERROR the page has no self-test');log('DONE');}else{setTimeout(go2,1000);}}
     go2();})();
     """
+}
+
+/// 7.64: the refusal page's Check again (a handler of its own, held weakly, so the window is not kept alive by it)
+final class SelfAgain: NSObject, WKScriptMessageHandler {
+    private weak var host: WebViewController?
+    init(_ host: WebViewController) { self.host = host }
+    func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
+        DispatchQueue.main.async { [weak self] in self?.host?.startPage() }
+    }
 }

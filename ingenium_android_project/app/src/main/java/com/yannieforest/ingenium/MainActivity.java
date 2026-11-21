@@ -138,6 +138,10 @@ public class MainActivity extends Activity {
             }
         }
         if (!listening) webView.addJavascriptInterface(bridge, "IngeniumNative");
+        // 7.64: the refusal page's Check again (SelfCheck): it only checks this copy again, and opens Ingenium when it is the one signed
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface public void again() { runOnUiThread(MainActivity.this::startPage); }
+        }, "IngeniumSelf");
 
         final WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
@@ -264,7 +268,28 @@ public class MainActivity extends Activity {
         }
 
         // always a fresh page: the page keeps your work in its own storage
-        webView.loadUrl(APP_URL);
+        startPage();
+    }
+
+    /* 7.64 (Ingenium itself, signed and checked, part two): where a signature of hers is kept, this copy is checked before anything of it
+       runs (SelfCore, SelfCheck). One that is not the one signed gets the app's own page in its place, saying which file and why; nothing
+       of it runs. A device with no signature kept opens at once; a fault in the check itself opens Ingenium as before. */
+    void startPage() {
+        if (!SelfCheck.hasKept(this)) { webView.loadUrl(APP_URL); return; }
+        new Thread(() -> {
+            String refused = null;
+            try {
+                java.util.TreeMap<String, Object> st = SelfCheck.state(this);
+                if ("changed".equals(st.get("state"))) refused = SelfCore.refusal(SelfCheck.asset(this, "self_refused.html"), st, SelfCheck.platform(this));
+            } catch (Throwable t) {
+                Log.w(TAG, "this copy could not be checked against its signature; it opens as before", t);
+            }
+            final String page = refused;
+            runOnUiThread(() -> {
+                if (page == null) webView.loadUrl(APP_URL);
+                else { Log.w(TAG, "INGENIUM_SELFCHECK REFUSED this copy is not the one signed"); webView.loadDataWithBaseURL("about:blank", page, "text/html", "utf-8", null); }
+            });
+        }, "ingenium-selfcheck").start();
     }
 
     /* R151: the question, when the page has stopped answering */

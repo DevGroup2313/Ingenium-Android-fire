@@ -158,6 +158,18 @@ final class Bridge {
             case "findLenders":
                 net.execute(() -> doFindLenders(callId));
                 break;
+            // 7.64: Ingenium itself, signed and checked, part two (SelfCheck, SelfCore): the room's three calls, off the page's thread
+            case "selfCheck":
+                io.execute(() -> { try { replyOk(callId, new JSONObject(SelfCore.json(SelfCheck.state(act)))); } catch (Throwable e) { replyErr(callId, "This copy could not be checked: " + e.getMessage()); } });
+                break;
+            case "selfSignaturePut": {
+                final String text = args.optString("text", "");
+                io.execute(() -> { try { replyOk(callId, new JSONObject(SelfCore.json(SelfCheck.put(act, text)))); } catch (Throwable e) { replyErr(callId, "The signature could not be kept: " + e.getMessage()); } });
+                break;
+            }
+            case "selfSignatureGet":
+                io.execute(() -> { try { replyOk(callId, new JSONObject(SelfCore.json(SelfCheck.get(act)))); } catch (Throwable e) { replyErr(callId, String.valueOf(e.getMessage())); } });
+                break;
             case "deviceInfo":
                 try {
                     replyOk(callId, deviceInfo());

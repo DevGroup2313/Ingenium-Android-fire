@@ -21,6 +21,7 @@ on:
       - 'ingenium.html'
       - 'ingenium_ios_project/**'
       - 'tools/app_page.py'
+      - 'tools/selftest/**'
   workflow_dispatch:
     inputs:
       screens:
@@ -67,6 +68,13 @@ jobs:
           xcodebuild -version
           brew install xcodegen
           df -h /
+
+      # 7.64: the app's own check of its copy (SelfCore.swift), held to the same cases as the Fire app's (tools/selftest)
+      - name: The app's check of its own copy, against its cases (7.64)
+        run: |
+          swiftc -O -o "$RUNNER_TEMP/selftest" ingenium_ios_project/Ingenium/SelfCore.swift tools/selftest/main.swift
+          "$RUNNER_TEMP/selftest" tools/selftest/vectors | tee -a "$GITHUB_STEP_SUMMARY"
+          test "${PIPESTATUS[0]}" -eq 0
 
       - name: Get llama.cpp ${{ env.LLAMA_TAG }}
         run: git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp third_party/llama.cpp
