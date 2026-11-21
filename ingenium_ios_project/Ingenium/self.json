@@ -1,0 +1,15 @@
+{
+ "release": "7.64",
+ "keys": [
+  {
+   "kid": "iej1hHjzk8YQm5BBv-52cR",
+   "x": "jLimQPq8WiSfRge_iu7Qe7-fE-lBn7z6kfyHF7ehzco",
+   "y": "fwgCio0OxurUKmdZPXbMT9Hp8wXzcz4p3G5GlS7AUUA"
+  },
+  {
+   "kid": "CdbXeLQDHJ63NSC4cT0xnK",
+   "x": "p5utS3RZvzR8S_P4kuweAB7GMgpgtBWnI-8Eeb4YQBk",
+   "y": "83hP2W7P9SnUssIEnIyJdUipkr_DHS6SE-dnKoEgVgo"
+  }
+ ]
+}
