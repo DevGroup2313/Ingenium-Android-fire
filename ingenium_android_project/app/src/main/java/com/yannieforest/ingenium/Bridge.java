@@ -99,6 +99,19 @@ final class Bridge {
                 if (!callId.isEmpty()) { if (saved) replyOk(callId, ok()); else replyErr(callId, "the file was not saved"); }
                 break;
             }
+            case "keepAwake": {
+                // 7.95 (her words: "I don't want the device's screen going to sleep and turning off to stop the task"): the page asks
+                // while a reply is written, Lector or Vocatio work, or the Cloud sends; FLAG_KEEP_SCREEN_ON holds only while the app is
+                // in front, and a screen she turns off by hand still turns off.
+                final boolean on = args.optBoolean("on");
+                act.runOnUiThread(() -> {
+                    android.view.Window w = act.getWindow();
+                    if (on) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                });
+                if (!callId.isEmpty()) replyOk(callId, ok());
+                break;
+            }
             case "info":
                 io.execute(() -> replyOk(callId, info()));
                 break;

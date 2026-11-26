@@ -48,6 +48,12 @@ final class EngineBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDele
         let args = obj["args"] as? [String: Any] ?? [:]
 
         switch method {
+        case "keepAwake":
+            // 7.95: the screen stays on while the page says Ingenium works (a reply, Lector, Vocatio, the Cloud); the idle timer comes
+            // back as soon as the work ends, and the side button still locks the screen.
+            let on = args["on"] as? Bool ?? false
+            DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = on }
+            if !callId.isEmpty { replyOk(callId, ["ok": true]) }
         case "info":
             ioQueue.async { self.replyOk(callId, self.info()) }
         case "listModels":
